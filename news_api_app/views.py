@@ -96,8 +96,11 @@ class NewsAPIView(APIView):
                 news_from = data.get("news_from")
                 news_url = data.get("news_url")
                 date = datetime.datetime.strptime(date, "%Y-%m-%d")
-                News.objects.create(title=title.strip(), details=details.strip(), news_from=news_from.strip(),
-                                    news_url=news_url.strip(), date=date)
+                if News.objects.filter(title=title, news_from=news_from, news_url=news_url).exists():
+                    return JsonResponse({"error": "News already exists!"}, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    News.objects.create(title=title.strip(), details=details.strip(), news_from=news_from.strip(),
+                                        news_url=news_url.strip(), date=date)
                 return JsonResponse({"message": "Record created!"}, status=status.HTTP_201_CREATED)
         except JSONDecodeError as e:
             return JsonResponse({"error": "Invalid Json"}, status=status.HTTP_400_BAD_REQUEST)
