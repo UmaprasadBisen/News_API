@@ -2,6 +2,7 @@ import datetime
 import json
 from json import JSONDecodeError
 
+import newspaper
 from django.db.models import Q
 from django.http import JsonResponse
 from drf_yasg import openapi
@@ -221,5 +222,59 @@ def search_news_by_keyword(request):
                 return JsonResponse({"message": "No data available!"}, status=status.HTTP_200_OK)
     except JSONDecodeError as e:
         return JsonResponse({"error": "Invalid Json"}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return JsonResponse({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def save_scrapped_news(request):
+    """
+    insert the bulk news from the websites
+    reference for scrapping
+    https://holwech.github.io/blog/Automatic-news-scraper/
+
+    :param request:
+    :return:
+    """
+    try:
+        # Loads the JSON files with news sites
+        with open('NewsPapers.json') as data_file:
+            companies = json.load(data_file)
+        #     As library execute many times so need to limit for time bounding
+        LIMIT = 5
+        for company, value in companies.items():
+            paper = newspaper.build(value['link'], memoize_articles=False)
+            count = 0
+            for content in paper.articles:
+                count = count + 1
+                if count > LIMIT:
+                    break
+                try:
+                    content.download()
+                    content.parse()
+                except Exception as e:
+                    continue
+                # Again, for consistency, if there is no found publish date the article will be skipped.
+                # After 50 downloaded articles from the same newspaper without publish date,
+                # the company will be skipped.
+                if content.publish_date is None:
+                    continue
+
+                # Comparing the article publish date and current date
+                # Proceed only when both date are same as per the problem statement
+                publish_date = content.publish_date
+                if datetime.datetime.now().strftime("%d-%m-%Y") == publish_date.strftime("%d-%m-%Y"):
+                    # check if news already exist or not in db
+                    title = content.title
+                    details = content.text
+                    news_from = company
+                    news_url = content.url
+                    if not News.objects.filter(title=title, news_from=news_from, news_url=news_url).exists():
+                        News.objects.create(title=title.strip(), details=details.strip(),
+                                            news_from=news_from.strip(),
+                                            news_url=news_url.strip(), date=publish_date)
+
+        return JsonResponse({"message": "Records created!"}, status=status.HTTP_201_CREATED)
     except Exception as e:
         return JsonResponse({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

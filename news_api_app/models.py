@@ -3,7 +3,7 @@ from django.db import models
 
 class News(models.Model):
     """Model for the News entity"""
-    title = models.CharField(max_length=50, blank=False)
+    title = models.CharField(max_length=500, blank=False)
     details = models.TextField(blank=False)
     date = models.DateField(blank=False)
     news_from = models.CharField(max_length=50, blank=False)

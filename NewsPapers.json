@@ -1,0 +1,17 @@
+{
+  "Washington Post": {
+    "link": "http://washingtonpost.com"
+  },
+  "CNN": {
+    "link": "http://edition.cnn.com/"
+  },
+  "Time": {
+    "link": "http://time.com/"
+  },
+  "QZ": {
+    "link": "https://qz.com/"
+  },
+  "Slashdot": {
+    "link": "https://slashdot.org/"
+  }
+}
