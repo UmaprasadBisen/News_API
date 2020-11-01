@@ -54,6 +54,11 @@ def validate_parameters(json_request, valid_keys_json):
 class NewsAPIView(APIView):
     permission_classes = (IsAuthenticated,)
 
+    @swagger_auto_schema(
+        operation_description="List all the news.",
+        responses={200: '[{"id":xx,"title":xxx,"details":xxx,"date":xx,"news_from":xx,"news_url":xx}]'}
+
+    )
     def get(self, request):
         """
         list all the news
@@ -65,17 +70,20 @@ class NewsAPIView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @swagger_auto_schema(
-        operation_description="Takes the details of news and inserts it in database",
+        operation_description="Add single record for news",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
                 'title': openapi.Schema(type=openapi.TYPE_STRING, description='Title of the news'),
-                'details': openapi.Schema(type=openapi.TYPE_STRING, description='Details of the news'),
-                'date': openapi.Schema(type=openapi.TYPE_STRING, description='Date of the news'),
-                'news_from': openapi.Schema(type=openapi.TYPE_STRING, description='Origin of the news'),
-                'news_url': openapi.Schema(type=openapi.TYPE_STRING, description='URL of the news')
+                'details': openapi.Schema(type=openapi.TYPE_STRING, description='Description of the news'),
+                'date': openapi.Schema(type=openapi.TYPE_STRING,
+                                       description='Published date of the news in YYY-MM-DD format'),
+                'news_from': openapi.Schema(type=openapi.TYPE_STRING, description='Source of the news'),
+                'news_url': openapi.Schema(type=openapi.TYPE_STRING, description='URL for the news')
             }
-        )
+        ),
+        responses={201: '{"message": "Record created!"}'}
+
     )
     def post(self, request):
         """
@@ -125,6 +133,10 @@ class NewsDetailsAPIView(APIView):
         except News.DoesNotExist as e:
             return False, {"error": "record  not exist"}
 
+    @swagger_auto_schema(
+        operation_description="Detail of single news.",
+        responses={200: '{"id":xx,"title":xxx,"details":xxx,"date":xx,"news_from":xx,"news_url":xx}'}
+    )
     def get(self, request, id=None):
         """
         Get the record from the db and return the detail
@@ -136,12 +148,28 @@ class NewsDetailsAPIView(APIView):
             success_status, result = self.get_object(id)
             if success_status:
                 serializer = NewsSerializer(result)
-                return Response(serializer.data)
+                return Response(serializer.data, status=status.HTTP_200_OK)
             else:
                 return JsonResponse(result, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return JsonResponse({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @swagger_auto_schema(
+        operation_description="Update the existing news",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'title': openapi.Schema(type=openapi.TYPE_STRING, description='Title of the news'),
+                'details': openapi.Schema(type=openapi.TYPE_STRING, description='Description of the news'),
+                'date': openapi.Schema(type=openapi.TYPE_STRING,
+                                       description='Published date of the news in YYY-MM-DD format'),
+                'news_from': openapi.Schema(type=openapi.TYPE_STRING, description='Source of the news'),
+                'news_url': openapi.Schema(type=openapi.TYPE_STRING, description='URL for the news')
+            }
+        ),
+        responses={200: '{"message": "Record Updated!"}'}
+
+    )
     def put(self, request, id):
         """
         Updated the existing record
@@ -180,6 +208,11 @@ class NewsDetailsAPIView(APIView):
         except Exception as e:
             return JsonResponse({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @swagger_auto_schema(
+        operation_description="Delete the existing news",
+        responses={204: '{"message": "Record deleted!"}'}
+
+    )
     def delete(self, request, id):
         """
         Deleting the news row from the db
@@ -198,83 +231,100 @@ class NewsDetailsAPIView(APIView):
             return JsonResponse({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def search_news_by_keyword(request):
-    """
-    Search the news by keyword
-    :param request:
-    :return:
-    """
-    try:
-        data = json.loads(request.body)
-        valid_keys = ["keyword"]
-        is_errors, response = validate_parameters(data, valid_keys)
-        if is_errors:
-            return JsonResponse(response, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            keyword = data.get("keyword")
-            news_obj = News.objects.filter(Q(title__contains=keyword) | Q(details__contains=keyword))
-            if news_obj:
-                serializer = NewsSerializer(news_obj, many=True)
-                return Response(serializer.data, status=status.HTTP_200_OK)
+class FilterNews(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Search the news by keywords in title or description",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'keyword': openapi.Schema(type=openapi.TYPE_STRING, description='Keyword for searching')
+            }
+        ),
+        responses={200: '[{"id":xx,"title":xxx,"details":xxx,"date":xx,"news_from":xx,"news_url":xx}]'}
+    )
+    def post(self, request):
+        """
+        Search the news by keyword
+        :param request:
+        :return:
+        """
+        try:
+            data = json.loads(request.body)
+            valid_keys = ["keyword"]
+            is_errors, response = validate_parameters(data, valid_keys)
+            if is_errors:
+                return JsonResponse(response, status=status.HTTP_400_BAD_REQUEST)
             else:
-                return JsonResponse({"message": "No data available!"}, status=status.HTTP_200_OK)
-    except JSONDecodeError as e:
-        return JsonResponse({"error": "Invalid Json"}, status=status.HTTP_400_BAD_REQUEST)
-    except Exception as e:
-        return JsonResponse({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                keyword = data.get("keyword")
+                news_obj = News.objects.filter(Q(title__contains=keyword) | Q(details__contains=keyword))
+                if news_obj:
+                    serializer = NewsSerializer(news_obj, many=True)
+                    return Response(serializer.data, status=status.HTTP_200_OK)
+                else:
+                    return JsonResponse({"message": "No data available!"}, status=status.HTTP_200_OK)
+        except JSONDecodeError as e:
+            return JsonResponse({"error": "Invalid Json"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return JsonResponse({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def save_scrapped_news(request):
-    """
-    insert the bulk news from the websites
-    reference for scrapping
-    https://holwech.github.io/blog/Automatic-news-scraper/
+class ScrapedNews(APIView):
+    permission_classes = [IsAuthenticated]
 
-    :param request:
-    :return:
-    """
-    try:
-        # Loads the JSON files with news sites
-        with open('NewsPapers.json') as data_file:
-            companies = json.load(data_file)
-        #     As library execute many times so need to limit for time bounding
-        LIMIT = 5
-        for company, value in companies.items():
-            paper = newspaper.build(value['link'], memoize_articles=False)
-            count = 0
-            for content in paper.articles:
-                count = count + 1
-                if count > LIMIT:
-                    break
-                try:
-                    content.download()
-                    content.parse()
-                except Exception as e:
-                    continue
-                # Again, for consistency, if there is no found publish date the article will be skipped.
-                # After 50 downloaded articles from the same newspaper without publish date,
-                # the company will be skipped.
-                if content.publish_date is None:
-                    continue
+    @swagger_auto_schema(
+        operation_description="Scrape the news and insert them if and only if they have published date.",
 
-                # Comparing the article publish date and current date
-                # Proceed only when both date are same as per the problem statement
-                publish_date = content.publish_date
-                if datetime.datetime.now().strftime("%d-%m-%Y") == publish_date.strftime("%d-%m-%Y"):
-                    # check if news already exist or not in db
-                    title = content.title
-                    details = content.text
-                    news_from = company
-                    news_url = content.url
-                    if not News.objects.filter(title=title, news_from=news_from, news_url=news_url).exists():
-                        News.objects.create(title=title.strip(), details=details.strip(),
-                                            news_from=news_from.strip(),
-                                            news_url=news_url.strip(), date=publish_date)
+        responses={201: '{"message": "Records created!"}'}
+    )
+    def post(self, request):
+        """
+        insert the bulk news from the websites
+        reference for scrapping
+        https://holwech.github.io/blog/Automatic-news-scraper/
 
-        return JsonResponse({"message": "Records created!"}, status=status.HTTP_201_CREATED)
-    except Exception as e:
-        return JsonResponse({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        :param request:
+        :return:
+        """
+        try:
+            # Loads the JSON files with news sites
+            with open('NewsPapers.json') as data_file:
+                companies = json.load(data_file)
+            #     As library execute for many news so need to limit
+            LIMIT = 5
+            for company, value in companies.items():
+                paper = newspaper.build(value['link'], memoize_articles=False)
+                count = 0
+                for content in paper.articles:
+                    count = count + 1
+                    if count > LIMIT:
+                        break
+                    try:
+                        content.download()
+                        content.parse()
+                    except Exception as e:
+                        continue
+                    # Again, for consistency, if there is no found publish date the article will be skipped.
+                    # After 5 downloaded articles from the same newspaper without publish date,
+                    # the company will be skipped.
+                    if content.publish_date is None:
+                        continue
+
+                    # Comparing the article publish date and current date
+                    # Proceed only when both date are same as per the problem statement
+                    publish_date = content.publish_date
+                    if datetime.datetime.now().strftime("%d-%m-%Y") == publish_date.strftime("%d-%m-%Y"):
+                        # check if news already exist or not in db
+                        title = content.title
+                        details = content.text
+                        news_from = company
+                        news_url = content.url
+                        if not News.objects.filter(title=title, news_from=news_from, news_url=news_url).exists():
+                            News.objects.create(title=title.strip(), details=details.strip(),
+                                                news_from=news_from.strip(),
+                                                news_url=news_url.strip(), date=publish_date)
+
+            return JsonResponse({"message": "Records created!"}, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return JsonResponse({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

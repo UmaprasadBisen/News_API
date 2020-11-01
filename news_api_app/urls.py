@@ -1,10 +1,11 @@
-from django.urls import path
+from django.urls import path, include
 
-from news_api_app.views import NewsAPIView, NewsDetailsAPIView, search_news_by_keyword, save_scrapped_news
+from news_api_app.views import NewsAPIView, NewsDetailsAPIView, FilterNews, ScrapedNews
 
 urlpatterns = [
     path('news/', NewsAPIView.as_view()),
-    path('bulk-news/', save_scrapped_news),
+    path('bulk-news/', ScrapedNews.as_view()),
     path('news/<int:id>/', NewsDetailsAPIView.as_view()),
-    path('news-filter/', search_news_by_keyword)
+    path('news-filter/', FilterNews.as_view())
+
 ]
